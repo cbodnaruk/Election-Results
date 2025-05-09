@@ -1,0 +1,19 @@
+{
+  "name": "electionapi",
+  "version": "1.0.0",
+  "description": "Easier AEC Data API",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "concurrently \"node server.js\" \"node ingest.js\""
+  },
+  "author": "C Bodnaruk",
+  "license": "AGPL-3.0",
+  "dependencies": {
+    "adm-zip": "^0.5.16",
+    "basic-ftp": "^5.0.5",
+    "concurrently": "^9.1.2",
+    "express": "^5.1.0",
+    "xml-js": "^1.6.11"
+  }
+}
