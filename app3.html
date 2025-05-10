@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Data Fetcher</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles can be added here if needed */
+        body {
+            font-family: 'Inter', sans-serif; /* Default Tailwind font */
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center justify-center p-4">
+
+    <div id="app-container" class="bg-white p-8 rounded-lg shadow-xl w-full max-w-md">
+        </div>
+
+    <div id="results-container" class="mt-6 bg-white p-8 rounded-lg shadow-xl w-full max-w-md hidden">
+        <h2 class="text-2xl font-semibold text-gray-700 mb-4 text-center">Results</h2>
+        <div id="results-content" class="space-y-3">
+            </div>
+        <div id="error-message" class="mt-4 text-red-500 text-sm hidden">
+            </div>
+    </div>
+
+    <script>
+        // Function to create and load the page content
+        function loadPage() {
+            const appContainer = document.getElementById("app-container");
+            appContainer.innerHTML = ''; // Clear previous content if any
+
+            // Create a container div for the form
+            const page = document.createElement("div");
+            page.className = "flex flex-col items-center"; // Center form elements
+
+            // Create the form element
+            const form = document.createElement("form");
+            form.className = "w-full"; // Form takes full width of its container
+
+            // Create the input field
+            const input = document.createElement("input");
+            input.type = "text";
+            input.name = "textbox";
+            input.placeholder = "Enter text here";
+            // Tailwind classes for styling the input field
+            input.className = "w-full px-4 py-3 mb-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition duration-150 ease-in-out";
+
+            // Create the submit button
+            const button = document.createElement("button");
+            button.type = "submit";
+            button.textContent = "Submit";
+            // Tailwind classes for styling the button
+            button.className = "w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-75 transition duration-150 ease-in-out";
+
+            // Append input and button to the form
+            form.appendChild(input);
+            form.appendChild(button);
+
+            // Append form to the page container
+            page.appendChild(form);
+
+            // Get references to results and error display elements
+            const resultsContainer = document.getElementById("results-container");
+            const resultsContent = document.getElementById("results-content");
+            const errorMessageDiv = document.getElementById("error-message");
+
+            // Add event listener for form submission
+            form.addEventListener("submit", async function (event) {
+                event.preventDefault(); // Prevent the default form submission
+
+                const inputValue = input.value.trim(); // Get and trim the value from the input field
+                console.log("Input value:", inputValue); // Log the value to the console
+
+                // Clear previous results and errors
+                resultsContent.innerHTML = '';
+                errorMessageDiv.textContent = '';
+                errorMessageDiv.classList.add('hidden');
+                resultsContainer.classList.add('hidden');
+
+
+                if (!inputValue) {
+                    errorMessageDiv.textContent = "Please enter a value.";
+                    errorMessageDiv.classList.remove('hidden');
+                    resultsContainer.classList.remove('hidden'); // Show container to display error
+                    return;
+                }
+
+                // Show loading state on button (optional)
+                button.textContent = "Loading...";
+                button.disabled = true;
+
+                try {
+                    // Fetch data from the API
+                    // Note: The URL '/api/single/${inputValue}' is a relative path.
+                    // This will work if your development server is set up to proxy requests
+                    // to an API server, or if the API is hosted on the same domain.
+                    // For a real application, you might need a full URL:
+                    // e.g., `https://your-api-domain.com/api/single/${inputValue}`
+                    const response = await fetch(`/api/single/${inputValue}`, {
+                        method: "GET",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "Accept": "application/json" // Good practice to include Accept header
+                        }
+                    });
+
+                    if (!response.ok) {
+                        // Handle HTTP errors
+                        const errorData = await response.json().catch(() => ({ message: "An unknown error occurred." }));
+                        throw new Error(`Network response was not ok: ${response.status} ${response.statusText}. ${errorData.message || ''}`);
+                    }
+
+                    const data = await response.json(); // Parse the JSON response
+
+                    // Check if the expected data structure is present
+                    if (data && data.twoCandidatePreferred && data.twoCandidatePreferred.candidates && Array.isArray(data.twoCandidatePreferred.candidates)) {
+                        if (data.twoCandidatePreferred.candidates.length === 0) {
+                            resultsContent.innerHTML = '<p class="text-gray-600">No candidates found.</p>';
+                        } else {
+                            // Create and display each candidate's information
+                            data.twoCandidatePreferred.candidates.forEach(candidate => {
+                                const candidateDiv = document.createElement("div");
+                                candidateDiv.className = "p-3 bg-gray-50 rounded-md border border-gray-200"; // Style for each candidate entry
+                                
+                                const nameEl = document.createElement("strong");
+                                nameEl.textContent = candidate.name || "N/A";
+                                nameEl.className = "text-blue-600";
+
+                                const partyEl = document.createElement("span");
+                                partyEl.textContent = ` - ${candidate.party || "N/A"}`;
+                                partyEl.className = "text-gray-700";
+                                
+                                const votesEl = document.createElement("span");
+                                const percentage = candidate.totalVotes && typeof candidate.totalVotes.percentage === 'number' 
+                                                   ? candidate.totalVotes.percentage.toFixed(2) 
+                                                   : "N/A";
+                                votesEl.textContent = `: ${percentage}%`;
+                                votesEl.className = "text-green-600 font-medium";
+
+                                candidateDiv.appendChild(nameEl);
+                                candidateDiv.appendChild(partyEl);
+                                candidateDiv.appendChild(votesEl);
+                                resultsContent.appendChild(candidateDiv); // Append each candidate's result
+                            });
+                        }
+                    } else {
+                        // Handle cases where the data structure is not as expected
+                        console.error("Unexpected data structure:", data);
+                        resultsContent.innerHTML = '<p class="text-red-500">Received unexpected data format from the server.</p>';
+                    }
+                    resultsContainer.classList.remove('hidden'); // Show the results container
+
+                } catch (error) {
+                    // Display error messages to the user
+                    console.error("Fetch error:", error);
+                    errorMessageDiv.textContent = `Error: ${error.message}`;
+                    errorMessageDiv.classList.remove('hidden');
+                    resultsContainer.classList.remove('hidden'); // Show container to display error
+                } finally {
+                    // Reset button state
+                    button.textContent = "Submit";
+                    button.disabled = false;
+                }
+
+                // Optionally, clear the input field after submission
+                // input.value = ""; // Decided to keep the value for user convenience
+            });
+
+            // Append the generated page structure to the main app container
+            appContainer.appendChild(page);
+            return page; // Though not strictly necessary to return if manipulating DOM directly
+        }
+
+        // Call loadPage when the DOM is fully loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            loadPage();
+        });
+    </script>
+
+</body>
+</html>

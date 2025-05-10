@@ -1,50 +1,85 @@
-export function loadPage() {
+import { showResults } from "./electorateResults.js";
+export async function loadPage() {
+
     var page = document.createElement("div");
-    var form = document.createElement("form");
+    page.id = "wrapper"
 
-    var input = document.createElement("input");
-    input.type = "text";
-    input.name = "textbox";
-    input.placeholder = "Enter text here";
 
-    var button = document.createElement("button");
-    button.type = "submit";
-    button.textContent = "Submit";
 
-    form.appendChild(input);
-    form.appendChild(button);
-    page.appendChild(form);
-
-    form.addEventListener("submit", async function (event) {
-        event.preventDefault(); // Prevent the default form submission
-
-        var inputValue = input.value; // Get the value from the input field
-        console.log("Input value:", inputValue); // Log the value to the console
-        
-        let data = await fetch(`api/single/${inputValue}`, {
-            method: "GET",
-            headers: {
-                "Content-Type": "application/json"
-            }
-        })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error("Network response was not ok " + response.statusText);
-            }
-            return response.json(); // Parse the JSON response
-        })
-
-        const resultDiv = document.createElement("div");
-        for (let candidate of data.twoCandidatePreferred.candidates) {
-            const candidateDiv = document.createElement("div");
-            candidateDiv.textContent = `${candidate.name} - ${candidate.party}: ${candidate.totalVotes.percentage}%`; // Display each candidate's name and votes
-            resultDiv.appendChild(candidateDiv); // Append each candidate's result to the result div
+    let preload = await fetch('api/e', {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
         }
-        document.body.appendChild(resultDiv); // Append the result div to the body
+    }).then(response => { return response.json() }
+    )
+    const selectionGrid = SelectionGrid(preload)
+    page.append(selectionGrid)
 
-        // Optionally, you can clear the input field after submission
-        input.value = "";
-    })
+
+
+    const results = document.createElement("div");
+    results.id = "results"
+    page.append(results)
+
+
 
     return page;
 }
+
+function SelectionGrid(electorates) {
+    let states = []
+    const wrapper = document.createElement("div")
+    wrapper.classList.add("electorate-selection-wrapper")
+    const select = document.createElement("select")
+    select.id = "state-select"
+    for (const [key, value] of Object.entries(electorates)) {
+        states.push(key)
+    }
+    wrapper.appendChild(select)
+    for (let state of states) {
+        const option = document.createElement("option")
+        option.value = state
+        option.text = state
+        select.appendChild(option)
+
+        const electorateSelection = document.createElement("div")
+        electorateSelection.classList.add('electorate-selection')
+        electorateSelection.id = `${state}-electorate-selection`
+        for (const [key, value] of Object.entries(electorates[state])) {
+            const electorateOption = document.createElement("div")
+            electorateOption.classList.add('electorate-option')
+            electorateOption.id = key
+            electorateOption.textContent = value.name
+            electorateSelection.appendChild(electorateOption)
+
+            electorateOption.addEventListener("click", async function (event) {
+                var inputValue = event.target.id; // Get the shortcode from the id
+                console.log("Input value:", inputValue); // Log the value to the console
+                if (document.querySelector('.selected-electorate')) {
+                    document.querySelector('.selected-electorate').classList.remove('selected-electorate')
+                }
+                event.target.classList.add('selected-electorate')
+                showResults(inputValue)
+            })
+
+        }
+        wrapper.appendChild(electorateSelection)
+
+
+    }
+
+    select.addEventListener("change", function (event) {
+        const selectedState = event.target.value;
+        const box = document.getElementById(`${selectedState}-electorate-selection`)
+        if (document.querySelector('.selected-state')) {
+            document.querySelector('.selected-state').classList.remove('selected-state')
+        }
+        box.classList.add('selected-state')
+    })
+
+
+    return wrapper
+}
+

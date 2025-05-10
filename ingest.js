@@ -10,12 +10,15 @@ const port = 5000;
 
 let currentZip = null; // Variable to store the name of the most recent zip file
 let data = null;
+let preload = {ACT: {}, NSW: {}, NT: {}, QLD: {}, SA: {}, TAS: {}, VIC: {}, WA: {}};
 
 // Middleware
 app.use(express.json());
 
 updateData(); // Call the function to update data periodically
 setInterval(updateData, 180000); // Update data every 3 minutes
+
+getPreload();
 
 // Routes
 app.get('/', (req, res) => {
@@ -122,6 +125,52 @@ function summarise(data,type) {
     }
 }
 
+async function getPreload() {
+        const client = new Client()
+    client.ftp.verbose = false
+    try {
+        await client.access({
+            host: "mediafeed.aec.gov.au",
+            secure: false
+        })
+        let list = await client.list()
+        let electionID = list[0].name
+        await client.cd(electionID)
+        await client.cd('Detailed')
+        await client.cd('Preload')
+        let zips = await client.list()
+        let recentZip = zips[zips.length - 1].name
+            console.log("New zip file found: ", recentZip)
+            await client.downloadTo(`./zip/preload`, recentZip) // Download the zip file
+            preload = readZipPreload(`./zip/preload`) // Process the downloaded zip file
+
+    }
+    catch(err) {
+        console.log(err)
+    }
+    client.close()
+}
+
+function readZipPreload(zipFilePath) {
+        var zip = new AdmZip(zipFilePath); // Create a new instance of AdmZip
+    var folders = zip.getEntries() // Get the entries in the zip file
+    let filename = folders.find(entry => entry.entryName.includes("xml/aec-mediafeed-polling")); // Find the xml folder in the zip file
+    var file = zip.getEntry(filename) // Get the first file in the xml folder
+    var xml = zip.readAsText(file); // Read the file as text
+    
+    var options = {compact: true, ignoreComment: true, spaces: 4};
+    var result = convert.xml2js(xml, options); // Convert the XML data to an object
+
+    var electorates = result.MediaFeed.PollingDistrictList.PollingDistrict.map(district => new Electorate(district));
+    
+    for (let e of electorates){
+        preload[e.state][e.shortCode] = e
+    }
+
+    fs.writeFile('./data/preload.json', JSON.stringify(preload))
+
+}
+
 class Contest {
     constructor(contest) {
         this.updated = (contest._attributes) ? contest._attributes.Updated ?? "" : ""; // Updated date
@@ -186,8 +235,8 @@ class Candidate {
             this.full = true;
             this.name = candidate["eml:CandidateIdentifier"]["eml:CandidateName"]._text; // Candidate name
             this.party = candidate["eml:AffiliationIdentifier"] ? candidate["eml:AffiliationIdentifier"]["eml:RegisteredName"]._text : "Independent"; // Candidate party
-            this.partyID = candidate["eml:AffiliationIdentifier"] ? candidate["eml:AffiliationIdentifier"]._attributes.ID : 0; // Candidate party ID
-            this.incumbent = candidate["Incumbent"]._text; // Incumbent status
+            this.partyID = candidate["eml:AffiliationIdentifier"] ? candidate["eml:AffiliationIdentifier"]._attributes.Id : 0; // Candidate party ID
+            this.incumbent = (candidate["Incumbent"]._text == "true") ? true : false; // Incumbent status
             this.votesByType = new VotesByType(candidate["VotesByType"]); // Votes by type object
         }
         this.totalVotes = new Votes(candidate["Votes"])
@@ -232,5 +281,14 @@ class PollingPlace {
         this.firstPreferences = new FirstPreferences(pollingPlace["FirstPreferences"]); // First preferences object
         this.twoCandidatePreferred = new TwoCandidatePreferred(pollingPlace["TwoCandidatePreferred"]); // Two candidate preferred object
 
+    }
+}
+
+class Electorate {
+    constructor(electorate) {
+        this.shortCode = electorate.PollingDistrictIdentifier._attributes.ShortCode; // District short code
+        this.id = electorate.PollingDistrictIdentifier._attributes.Id; // District ID
+        this.name = electorate.PollingDistrictIdentifier.Name._text; // District name
+        this.state = electorate.PollingDistrictIdentifier.StateIdentifier._attributes.Id; // State ID
     }
 }

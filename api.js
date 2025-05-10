@@ -2,8 +2,12 @@ const express = require('express');
 const router = express.Router();
 const fs = require('fs/promises');
 let data = null; // Variable to store the data
-
+let preload = null
 let lastLoaded = Date.now(); // Variable to store the last loaded time
+fs.readFile('./data/preload.json', 'utf8').then((fileData) => {
+preload = JSON.parse(fileData);
+})
+
 
 router.get('/full', (req, res) => {
     // Check if loaded data is recent enough (or if no data is loaded)
@@ -36,6 +40,11 @@ router.get('/single/:division', (req, res) => {
     
     res.send(data.house[division.toUpperCase()]); // Send the data for the specified division
 });
+
+router.get('/e', (req,res)=>{
+    res.send(preload)
+
+})
 
 
 module.exports = router;
