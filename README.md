@@ -1,1 +1,1 @@
-A little site that pulls data from the AEC media feed and displays it. Currently, little information other than the map that you can't get from the AEC, but I'm planning on adding more analysis down the line. Hosted at [my website](election.cbodnaruk.com)
+A little site that pulls data from the AEC media feed and displays it. Currently, little information other than the map that you can't get from the AEC, but I'm planning on adding more analysis down the line. Hosted on [my website](http://election.cbodnaruk.com)
