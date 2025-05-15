@@ -11,6 +11,7 @@ const port = 5000;
 let currentZip = null; // Variable to store the name of the most recent zip file
 let data = null;
 let preload = {ACT: {}, NSW: {}, NT: {}, QLD: {}, SA: {}, TAS: {}, VIC: {}, WA: {}};
+let allPollingPlaces = {}
 
 // Middleware
 app.use(express.json());
@@ -165,9 +166,18 @@ function readZipPreload(zipFilePath) {
     
     for (let e of electorates){
         preload[e.state][e.shortCode] = e
+        
+    }
+
+    for (let e of result.MediaFeed.PollingDistrictList.PollingDistrict){
+        for (let p of e.PollingPlaces.PollingPlace){
+            let place = new PollingPlacePreload(p)
+            allPollingPlaces[place.id] = place
+        }
     }
 
     fs.writeFile('./data/preload.json', JSON.stringify(preload))
+    fs.writeFile('./data/allPollingPlaces.json', JSON.stringify(allPollingPlaces))
 
 }
 
@@ -230,10 +240,13 @@ class Candidate {
     full = false; // Flag to indicate if the candidate object is complete
     constructor(candidate, current = true) {
         this.current = current; // Current candidate status
-        this.candidateIdentifier = candidate["eml:CandidateIdentifier"]._attributes.ID; // Candidate identifier
+        this.candidateIdentifier = candidate["eml:CandidateIdentifier"]._attributes.Id; // Candidate identifier
         if (candidate["eml:CandidateIdentifier"]["eml:CandidateName"]){
             this.full = true;
-            this.name = candidate["eml:CandidateIdentifier"]["eml:CandidateName"]._text; // Candidate name
+            let rawName = candidate["eml:CandidateIdentifier"]["eml:CandidateName"]._text;
+            let surname = rawName.split(', ')[0]
+            let firstname = rawName.split(', ')[1]
+            this.name = `${firstname} ${surname}`; // Candidate name
             this.party = candidate["eml:AffiliationIdentifier"] ? candidate["eml:AffiliationIdentifier"]["eml:RegisteredName"]._text : "Independent"; // Candidate party
             this.partyID = candidate["eml:AffiliationIdentifier"] ? candidate["eml:AffiliationIdentifier"]._attributes.Id : 0; // Candidate party ID
             this.incumbent = (candidate["Incumbent"]._text == "true") ? true : false; // Incumbent status
@@ -276,8 +289,8 @@ class Coalition {
 class PollingPlace {
     constructor(pollingPlace) {
         this.updated = (pollingPlace._attributes) ? pollingPlace._attributes.Updated ?? "" : ""; // Updated date
-        this.pollingPlaceIdentifier = pollingPlace.PollingPlaceIdentifier._attributes.ID; // Polling place identifier
-        this.pollingPlaceName = pollingPlace.PollingPlaceIdentifier._attributes.Name; // Polling place name
+        this.id = pollingPlace.PollingPlaceIdentifier._attributes.Id; // Polling place identifier
+        this.name = pollingPlace.PollingPlaceIdentifier._attributes.Name; // Polling place name
         this.firstPreferences = new FirstPreferences(pollingPlace["FirstPreferences"]); // First preferences object
         this.twoCandidatePreferred = new TwoCandidatePreferred(pollingPlace["TwoCandidatePreferred"]); // Two candidate preferred object
 
@@ -290,5 +303,13 @@ class Electorate {
         this.id = electorate.PollingDistrictIdentifier._attributes.Id; // District ID
         this.name = electorate.PollingDistrictIdentifier.Name._text; // District name
         this.state = electorate.PollingDistrictIdentifier.StateIdentifier._attributes.Id; // State ID
+    }
+}
+
+class PollingPlacePreload{
+    constructor(place){
+        this.id = place["eml:PhysicalLocation"]._attributes.Id
+        this.lat = place["eml:PhysicalLocation"]["eml:Address"]["xal:PostalServiceElements"]["xal:AddressLatitude"]._text
+        this.long = place["eml:PhysicalLocation"]["eml:Address"]["xal:PostalServiceElements"]["xal:AddressLongitude"]._text
     }
 }

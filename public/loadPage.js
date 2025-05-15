@@ -1,4 +1,6 @@
 import { showResults } from "./electorateResults.js";
+import { colours } from "./parties.js";
+var map
 export async function loadPage() {
 
     var page = document.createElement("div");
@@ -38,6 +40,7 @@ function SelectionGrid(electorates) {
         states.push(key)
     }
     wrapper.appendChild(select)
+    select.append(document.createElement("option"))
     for (let state of states) {
         const option = document.createElement("option")
         option.value = state
@@ -52,6 +55,9 @@ function SelectionGrid(electorates) {
             electorateOption.classList.add('electorate-option')
             electorateOption.id = key
             electorateOption.textContent = value.name
+
+            electorateOption.style.backgroundColor = colours[value.leader] + ((value.leadMargin > 2) ? "AA" : "44")
+
             electorateSelection.appendChild(electorateOption)
 
             electorateOption.addEventListener("click", async function (event) {
@@ -61,7 +67,13 @@ function SelectionGrid(electorates) {
                     document.querySelector('.selected-electorate').classList.remove('selected-electorate')
                 }
                 event.target.classList.add('selected-electorate')
-                showResults(inputValue)
+                                if (map) map.remove()
+                let mapBounds = showMap(event.target.textContent).then((bounds)=> {
+            showResults(inputValue,bounds)
+            })
+                // showResults(inputValue,mapBounds)
+
+                
             })
 
         }
@@ -69,6 +81,9 @@ function SelectionGrid(electorates) {
 
 
     }
+    const mapbox = document.createElement("div")
+    mapbox.id = "map"
+    wrapper.appendChild(mapbox)
 
     select.addEventListener("change", function (event) {
         const selectedState = event.target.value;
@@ -80,6 +95,28 @@ function SelectionGrid(electorates) {
     })
 
 
+
     return wrapper
 }
 
+async function showMap(elec){
+    elec = elec[0] + elec.substring(1).toLowerCase()
+    let elecjson = await fetch(`./geojsons/${elec}.geojson`, {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+        }
+})
+    let data = await elecjson.json()
+    console.log(data);
+    
+    map = L.map('map')
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+}).addTo(map);
+    let geoJSON = L.geoJSON(data).addTo(map);
+    map.fitBounds(geoJSON.getBounds());
+    return geoJSON.getBounds()
+}
